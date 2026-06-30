@@ -21,14 +21,19 @@ from functools import lru_cache
 
 import pandas as pd
 
+from src.compute import technicals
 from src.storage.base import Storage
 
 logger = logging.getLogger(__name__)
 
 UNIVERSE_DATASET = "universe"
+PRICES_DATASET = "prices"
 METRICS_DATASET = "metrics"
 FUNDAMENTALS_DATASET = "fundamentals"
 FILINGS_DATASET = "filings"
+
+# OHLCV columns kept from a prices snapshot, in display order.
+_OHLCV_COLUMNS = ("open", "high", "low", "close", "adj_close", "volume")
 
 _PROVENANCE_COLUMNS = ("_source", "_fetched_at", "_disclaimer", "_notes")
 
@@ -88,6 +93,50 @@ class ReadAPI:
             funds = _strip_provenance(fundamentals)
             table = table.merge(funds, on="symbol", how="left", suffixes=("", "_fund"))
         return table
+
+    def get_price_history(
+        self, ticker: str, indicators: bool = True
+    ) -> pd.DataFrame:
+        """Daily OHLCV history for one ticker, for charting (date-indexed, ascending).
+
+        Reads the latest `prices` snapshot (which carries the full ~2yr history per
+        symbol) and filters to `ticker`. Columns: open, high, low, close,
+        adj_close, volume. When `indicators=True`, overlay series computed by the
+        SAME backend functions used for the table are appended, so charts agree
+        with the grid: sma_20/50/200, rsi_14, macd/macd_signal/macd_histogram,
+        bollinger_upper/middle/lower (all on adjusted close). Empty if the symbol
+        has no price snapshot yet. Works for benchmarks too (e.g. "QQQ", "SPY").
+        """
+        prices = self._read_latest(PRICES_DATASET)
+        if prices.empty or "symbol" not in prices.columns:
+            return pd.DataFrame()
+
+        symbol = ticker.upper()
+        rows = prices[prices["symbol"].str.upper() == symbol]
+        if rows.empty:
+            return pd.DataFrame()
+
+        df = _strip_provenance(rows).copy()
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").set_index("date")
+        keep = [c for c in _OHLCV_COLUMNS if c in df.columns]
+        df = df[keep]
+
+        if indicators and "adj_close" in df.columns:
+            close = df["adj_close"]
+            for window in (20, 50, 200):
+                df[f"sma_{window}"] = technicals.sma(close, window)
+            df["rsi_14"] = technicals.rsi(close)
+            macd_df = technicals.macd(close)
+            df["macd"] = macd_df["macd"]
+            df["macd_signal"] = macd_df["signal"]
+            df["macd_histogram"] = macd_df["histogram"]
+            bands = technicals.bollinger_bands(close)
+            df["bollinger_upper"] = bands["upper"]
+            df["bollinger_middle"] = bands["middle"]
+            df["bollinger_lower"] = bands["lower"]
+
+        return df
 
     def get_tearsheet(self, ticker: str) -> dict[str, object]:
         """Everything for one ticker: merged metrics+fundamentals row plus filings.
@@ -187,6 +236,11 @@ def get_table() -> pd.DataFrame:
 def get_tearsheet(ticker: str) -> dict[str, object]:
     """Module-level convenience: single-ticker tearsheet via the default store."""
     return default_read_api().get_tearsheet(ticker)
+
+
+def get_price_history(ticker: str, indicators: bool = True) -> pd.DataFrame:
+    """Module-level convenience: OHLCV + indicator history via the default store."""
+    return default_read_api().get_price_history(ticker, indicators=indicators)
 
 
 def get_market_overview() -> dict[str, object]:

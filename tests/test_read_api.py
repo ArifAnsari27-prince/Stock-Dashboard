@@ -6,6 +6,8 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+import pandas as pd
+
 from src.api.read_api import ReadAPI
 from src.models import (
     DataSource,
@@ -13,6 +15,7 @@ from src.models import (
     FilingType,
     Fundamentals,
     MetricsRow,
+    PriceBar,
     Provenance,
     Snapshot,
     Ticker,
@@ -22,6 +25,15 @@ from src.storage.parquet_store import ParquetStore
 
 def _prov(source: DataSource) -> Provenance:
     return Provenance(source=source, fetched_at=datetime(2026, 6, 30, tzinfo=timezone.utc))
+
+
+def _price_bars(symbol: str, n: int = 60, base: float = 100.0) -> list[PriceBar]:
+    dates = pd.bdate_range("2026-01-01", periods=n)
+    return [
+        PriceBar(symbol=symbol, date=d.date(), open=base + i, high=base + i + 1,
+                 low=base + i - 1, close=base + i, adj_close=base + i, volume=1_000_000)
+        for i, d in enumerate(dates)
+    ]
 
 
 @pytest.fixture
@@ -57,6 +69,13 @@ def store(tmp_path):
                 Fundamentals(symbol="AAPL", revenue=4.0e11, net_margin=0.27),
                 Fundamentals(symbol="MSFT", revenue=2.8e11, net_margin=0.36),
             ],
+        ),
+    )
+    s.write_snapshot(
+        "prices",
+        Snapshot[PriceBar](
+            provenance=_prov(DataSource.YFINANCE),
+            rows=_price_bars("AAPL") + _price_bars("MSFT", base=200.0),
         ),
     )
     s.write_snapshot(
@@ -122,10 +141,32 @@ def test_get_market_overview(store):
     assert "disclaimer" in ov
 
 
+def test_get_price_history_with_indicators(store):
+    hist = ReadAPI(store).get_price_history("AAPL")
+    assert len(hist) == 60
+    assert hist.index.is_monotonic_increasing  # date-indexed ascending
+    for col in ("open", "high", "low", "close", "adj_close", "volume",
+                "sma_20", "sma_50", "rsi_14", "macd", "bollinger_upper"):
+        assert col in hist.columns
+    # sma_20 is computable by the end of 60 bars; sma_200 stays NaN (not enough history).
+    assert hist["sma_20"].notna().iloc[-1]
+    assert hist["sma_200"].isna().all()
+
+
+def test_get_price_history_no_indicators(store):
+    hist = ReadAPI(store).get_price_history("AAPL", indicators=False)
+    assert list(hist.columns) == ["open", "high", "low", "close", "adj_close", "volume"]
+
+
+def test_get_price_history_unknown_ticker(store):
+    assert ReadAPI(store).get_price_history("ZZZZ").empty
+
+
 def test_empty_store_degrades_gracefully(tmp_path):
     api = ReadAPI(ParquetStore(tmp_path))
     assert api.get_universe().empty
     assert api.get_table().empty
     assert api.get_market_overview() == {"constituents": 0}
+    assert api.get_price_history("AAPL").empty
     sheet = api.get_tearsheet("AAPL")
     assert sheet["found"] is False and sheet["filings"] == []
