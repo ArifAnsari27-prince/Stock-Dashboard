@@ -1,0 +1,18 @@
+# Secrets — never commit. The SEC User-Agent email lives here locally.
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# OS
+.DS_Store
+
+# NOTE: data/ is intentionally NOT ignored — the scheduled GitHub Actions jobs
+# commit Parquet snapshots there (CLAUDE.md §2). Only the placeholder is tracked
+# until the first job runs.

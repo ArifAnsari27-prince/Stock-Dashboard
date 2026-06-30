@@ -1,0 +1,20 @@
+﻿Ticker,Company,Share/ Par,% TNA,Class of shares,Market value
+"IUGXX","Invesco Premier US Government Money Portfolio","18,352,874.82","56.50%","Money Market Fund, Taxable","$18,352,874.82"
+"MLQBIG02","Bank of America/Merrill Lynch NDXMEGA2 Index","9,000.00","34.92%","Index","$11,377,256.85"
+"GSCBBIG2","MIDAS SSTK FOR .GSCBBIG2 GSCBBIG2","4,500.00","17.46%","Index","$5,688,630"
+"--","Societe Generale SA","2,700.00","10.48%","Swap Common Stock","$3,413,176.11"
+"NVDA","NVIDIA Corp","14,771.00","8.84%","Common Stock","$2,879,901.87"
+"AAPL","Apple Inc","6,989.00","6.04%","Common Stock","$1,969,080.86"
+"MSFT","Microsoft Corp","4,148.00","4.69%","Common Stock","$1,528,828.36"
+"TSLA","Tesla Inc","3,653.00","4.62%","Common Stock","$1,504,451.52"
+"GOOGL","Alphabet Inc","3,204.00","3.48%","Common Stock","$1,133,094.60"
+"AMZN","Amazon.com Inc","4,455.00","3.28%","Common Stock","$1,069,823.70"
+"GOOG","Alphabet Inc","3,001.00","3.24%","Common Stock","$1,054,191.28"
+"AVGO","Broadcom Inc","2,542.00","2.91%","Common Stock","$946,767.90"
+"--","PLEDGED CASH - BNYM","37.76","0.00%","Uninvestible Cash","$37.76"
+"USD","CASH & EQUIVALENTS","-32,036.45","-0.10%","Currency","-$32,036.45"
+"--","Receive SGNQMEGA INDEX SGNQMEGA","-3,027,906.09","-9.39%","Swap","-$3,027,906.09"
+"--","MIDAS SSTK FOR .GSCBBIG2 GSCBBIG2","-5,046,525.00","-15.65%","Swap","-$5,046,525"
+"--","Bank of America/Merrill Lynch NDXMEGA2 Index","-10,093,035.60","-31.31%","Swap","-$10,093,035.60"
+
+# as of 2026-06-29

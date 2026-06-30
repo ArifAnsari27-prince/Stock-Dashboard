@@ -1,0 +1,13 @@
+{
+  "data": {
+    "data": {
+      "rows": [
+        {"symbol": "AAPL", "companyName": "Apple Inc. Common Stock", "marketCap": "4,000,000"},
+        {"symbol": "MSFT", "companyName": "Microsoft Corporation Common Stock", "marketCap": "3,000,000"},
+        {"symbol": "GOOGL", "companyName": "Alphabet Inc. Class A Common Stock", "marketCap": "2,000,000"},
+        {"symbol": "GOOG", "companyName": "Alphabet Inc. Class C Common Stock", "marketCap": "1,900,000"},
+        {"symbol": "AAPL", "companyName": "Apple Inc. Common Stock", "marketCap": "4,000,000"}
+      ]
+    }
+  }
+}
