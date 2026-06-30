@@ -1,23 +1,8 @@
-# Nasdaq 100 Dashboard — backend dependencies.
-# Pinned exactly. yfinance especially breaks across versions (see CLAUDE.md §4),
-# so do not float these without testing the price source against fixtures.
-# Target runtime: Python 3.11+.
-
-# 1.x required: 0.2.x versions are bot-blocked by Yahoo and return no data.
-# Verified working live on 2026-06-30.
-yfinance==1.5.1
+# App + read API runtime (Streamlit Community Cloud installs this file).
+# Python 3.12 required — see .python-version (pyarrow/pandas lack 3.14 wheels).
 pandas==2.2.3
 numpy==2.1.3
 pyarrow==18.1.0
-requests==2.32.3
 pydantic==2.10.4
-
-# Frontend (Streamlit Community Cloud).
 streamlit==1.41.1
 plotly==5.24.1
-
-# Massive.com price adapter (optional; PRICE_SOURCE=massive).
-massive==2.8.0
-
-# Dev / test only.
-pytest==8.3.4

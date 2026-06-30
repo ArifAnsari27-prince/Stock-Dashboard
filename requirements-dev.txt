@@ -1,0 +1,3 @@
+# Local dev / CI tests. Full install:
+#   pip install -r requirements.txt -r requirements-backend.txt -r requirements-dev.txt
+pytest==8.3.4

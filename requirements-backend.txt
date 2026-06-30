@@ -1,0 +1,7 @@
+# Backend ingestion (GitHub Actions). Install after requirements.txt:
+#   pip install -r requirements.txt -r requirements-backend.txt
+#
+# yfinance is pinned exactly — do not float without testing (CLAUDE.md §4).
+yfinance==1.5.1
+requests==2.32.3
+massive==2.8.0
