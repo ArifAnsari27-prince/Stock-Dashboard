@@ -68,6 +68,15 @@ class Config:
     # EDGAR etiquette: never exceed 10 requests/second (CLAUDE.md §2).
     sec_max_requests_per_second: int = 10
 
+    # --- Prices (Massive.com / yfinance) ---------------------------------
+    # PRICE_SOURCE: "yfinance" (default) or "massive".
+    price_source: str = "yfinance"
+    # Massive.com API key (free tier: EOD data, 5 requests/min). Also accepts
+    # POLYGON_API_KEY (deprecated alias). Required when price_source=massive.
+    massive_api_key: str | None = None
+    # Minimum seconds between Massive REST calls (free tier ≈ 5/min → 12s safe).
+    massive_min_request_interval_seconds: float = 12.0
+
     # --- Universe --------------------------------------------------------
     # Nasdaq 100 is proxied by QQQ holdings (CLAUDE.md §1).
     universe_etf: str = "QQQ"
@@ -108,6 +117,16 @@ class Config:
             )
         return self.sec_user_agent
 
+    def require_massive_api_key(self) -> str:
+        """Return the Massive API key or raise if unset."""
+        if not self.massive_api_key:
+            raise RuntimeError(
+                "MASSIVE_API_KEY is not set. Required when PRICE_SOURCE=massive. "
+                "Get a key at https://massive.com/dashboard and set it in .env "
+                "locally or as a repo secret in Actions."
+            )
+        return self.massive_api_key
+
 
 def get_config() -> Config:
     """Build a Config from the current environment.
@@ -115,11 +134,18 @@ def get_config() -> Config:
     Reads:
       - DATA_DIR        (optional, defaults to <repo>/data)
       - SEC_USER_AGENT  (optional here, required at EDGAR call sites)
+      - PRICE_SOURCE    (optional, "yfinance" or "massive")
+      - MASSIVE_API_KEY (required when PRICE_SOURCE=massive)
+      - POLYGON_API_KEY (deprecated alias for MASSIVE_API_KEY)
     """
     data_dir_env = os.environ.get("DATA_DIR")
     data_dir = Path(data_dir_env) if data_dir_env else (REPO_ROOT / "data")
 
+    massive_key = os.environ.get("MASSIVE_API_KEY") or os.environ.get("POLYGON_API_KEY")
+
     return Config(
         data_dir=data_dir,
         sec_user_agent=os.environ.get("SEC_USER_AGENT"),
+        price_source=os.environ.get("PRICE_SOURCE", "yfinance").strip().lower(),
+        massive_api_key=massive_key,
     )

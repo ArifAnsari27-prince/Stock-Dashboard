@@ -124,6 +124,155 @@ data/                   # Parquet snapshots (committed by Actions)
 - Every metric's **units and definition** are documented (e.g., "volatility = annualized stdev of
   daily log returns, 252-day window"). Ambiguity here is the #1 source of silent bugs.
 
+
+Avoid:
+- Heavy ML frameworks.
+- Paid API dependencies.
+- Web scraping unless explicitly approved later.
+- Recommendation logic.
+- Overengineering.
+
+## Data Model Requirements
+
+Ticker universe fields:
+- ticker
+- company_name
+- sector
+- industry
+- exchange
+- index_membership
+- active
+
+Price fields:
+- ticker
+- timestamp
+- open
+- high
+- low
+- close
+- adjusted_close
+- volume
+- source
+
+Technical metric fields:
+- ticker
+- timestamp
+- return_1d
+- return_5d
+- return_1m
+- return_3m
+- return_6m
+- return_ytd
+- return_1y
+- sma_20
+- sma_50
+- sma_200
+- price_vs_sma_20
+- price_vs_sma_50
+- price_vs_sma_200
+- rsi_14
+- macd
+- macd_signal
+- macd_histogram
+- atr_14
+- volatility_20d
+- volatility_60d
+- volatility_252d
+- high_52w
+- low_52w
+- drawdown_52w
+- beta_vs_qqq
+- beta_vs_spy
+- corr_vs_qqq
+- corr_vs_spy
+- relative_volume
+
+Fundamental quality fields:
+- ticker
+- fiscal_period
+- revenue
+- revenue_growth_yoy
+- gross_margin
+- operating_margin
+- net_margin
+- free_cash_flow
+- fcf_margin
+- roe
+- roic
+- cash_and_equivalents
+- total_debt
+- net_debt
+- shares_outstanding
+- capex
+- rd_expense
+- rd_to_revenue
+
+Filing fields:
+- ticker
+- cik
+- form_type
+- filing_date
+- report_date
+- accession_number
+- sec_url
+
+## API Endpoints
+
+Build these endpoints:
+
+- GET /health
+- GET /api/universe
+- GET /api/market/overview
+- GET /api/stocks
+- GET /api/stocks/{ticker}
+- GET /api/stocks/{ticker}/prices
+- GET /api/stocks/{ticker}/technicals
+- GET /api/stocks/{ticker}/fundamentals
+- GET /api/stocks/{ticker}/filings
+- POST /api/refresh/prices
+- POST /api/refresh/fundamentals
+- POST /api/refresh/filings
+
+## Response Principles
+
+- Always return JSON.
+- Use explicit nulls when a metric is unavailable.
+- Never silently invent data.
+- Include source and last_updated fields where relevant.
+- Include warnings when data is delayed, missing, stale, or prototype-only.
+
+## Indicator Calculation Rules
+
+Use adjusted close for historical daily return calculations where available.
+Use regular OHLC for intraday candle display.
+RSI should use standard 14-period calculation.
+MACD should use 12/26 EMA with 9-period signal.
+Volatility should be annualized using daily returns for daily data.
+Beta should be calculated using daily returns vs QQQ and SPY.
+Drawdown should be calculated from rolling 52-week high.
+
+## Security and Compliance
+
+- Do not commit API keys.
+- Do not include user secrets in code.
+- Add .env.example for configuration.
+- Add clear disclaimer that data is prototype/delayed/unofficial.
+- Add no investment advice disclaimer in README.
+
+## Development Workflow
+
+Before writing code:
+1. Create or update docs/product-spec.md.
+2. Create docs/data-dictionary.md.
+3. Create docs/api-contract.md.
+4. Then implement backend.
+
+After code changes:
+1. Run formatting.
+2. Run tests.
+3. Summarize what changed.
+4. List any limitations or TODOs.
+
 ---
 
 ## 5. Build order (do these in sequence; finish and test each before moving on)

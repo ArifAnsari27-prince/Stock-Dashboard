@@ -1,13 +1,13 @@
 name: refresh-prices
 
-# Intraday price + computed-metrics refresh, ~every 15 min during US market hours.
-# GitHub cron is UTC-only and best-effort (runs can be delayed/skipped under load),
-# and it cannot model market holidays. The window 13:00-21:45 UTC covers 9:30-16:00
-# ET under both EDT and EST; extra runs on holidays are harmless (yfinance just
-# returns no new bars and the job tolerates that). yfinance needs no secret.
+# Intraday price + computed-metrics refresh during US market hours.
+# yfinance (default): ~15 min cadence, no API key.
+# Massive free tier: 5 req/min → ~22 min for 104 symbols; set PRICE_SOURCE=massive
+# and MASSIVE_API_KEY secret, and prefer workflow_dispatch or a daily cron.
 on:
   schedule:
-    - cron: "*/15 13-21 * * 1-5" # weekdays, 13:00-21:45 UTC
+    - cron: "*/15 13-21 * * 1-5" # weekdays, 13:00-21:45 UTC (yfinance)
+    - cron: "30 21 * * 1-5" # weekdays 21:30 UTC — daily EOD refresh (Massive free tier)
   workflow_dispatch: {}
 
 permissions:
@@ -33,6 +33,9 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Refresh prices and metrics
+        env:
+          PRICE_SOURCE: ${{ vars.PRICE_SOURCE || 'yfinance' }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
         run: python -m src.jobs.refresh_prices
 
       - name: Commit snapshots

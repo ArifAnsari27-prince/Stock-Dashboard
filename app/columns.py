@@ -1,0 +1,232 @@
+"""Column metadata for the screener grid and tearsheet groupings."""
+
+from __future__ import annotations
+
+# Fractions (× 100 for display as %)
+FRACTION_COLUMNS: frozenset[str] = frozenset(
+    {
+        "weight",
+        "return_1d",
+        "return_5d",
+        "return_1m",
+        "return_3m",
+        "return_6m",
+        "return_1y",
+        "return_ytd",
+        "momentum_3m",
+        "momentum_6m",
+        "momentum_12m",
+        "max_drawdown",
+        "drawdown_52w",
+        "price_vs_sma_20",
+        "price_vs_sma_50",
+        "price_vs_sma_200",
+        "volatility_20d",
+        "volatility_60d",
+        "volatility_252d",
+        "revenue_growth",
+        "gross_margin",
+        "operating_margin",
+        "net_margin",
+        "fcf_margin",
+        "roe",
+        "roic",
+        "fcf_conversion",
+        "capex_to_revenue",
+        "rnd_to_revenue",
+    }
+)
+
+# USD price-level columns
+USD_PRICE_COLUMNS: frozenset[str] = frozenset(
+    {
+        "latest_close",
+        "sma_20",
+        "sma_50",
+        "sma_200",
+        "high_52w",
+        "low_52w",
+        "macd",
+        "macd_signal",
+        "macd_histogram",
+        "bollinger_upper",
+        "bollinger_middle",
+        "bollinger_lower",
+        "atr_14",
+    }
+)
+
+# Large USD fundamentals
+USD_LARGE_COLUMNS: frozenset[str] = frozenset(
+    {
+        "revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
+        "free_cash_flow",
+        "cash_and_equivalents",
+        "total_debt",
+        "net_debt",
+        "capex",
+        "research_and_development",
+    }
+)
+
+# Always null in V1 — show n/a, never build features on them
+VALUATION_COLUMNS: frozenset[str] = frozenset(
+    {
+        "pe_ratio",
+        "ps_ratio",
+        "pb_ratio",
+        "ev_to_sales",
+        "fcf_yield",
+    }
+)
+
+RETURN_COLUMNS: frozenset[str] = frozenset(
+    {
+        "return_1d",
+        "return_5d",
+        "return_1m",
+        "return_3m",
+        "return_6m",
+        "return_1y",
+        "return_ytd",
+        "momentum_3m",
+        "momentum_6m",
+        "momentum_12m",
+    }
+)
+
+DEFAULT_SCREENER_COLUMNS: list[str] = [
+    "symbol",
+    "name",
+    "latest_close",
+    "return_1d",
+    "return_1m",
+    "return_ytd",
+    "return_1y",
+    "rsi_14",
+    "price_vs_sma_50",
+    "price_vs_sma_200",
+    "volatility_252d",
+    "beta_qqq",
+    "net_margin",
+    "roe",
+    "revenue_growth",
+]
+
+COLUMN_LABELS: dict[str, str] = {
+    "symbol": "Symbol",
+    "name": "Company",
+    "weight": "Weight",
+    "as_of": "As of",
+    "latest_close": "Price",
+    "return_1d": "1D",
+    "return_5d": "5D",
+    "return_1m": "1M",
+    "return_3m": "3M",
+    "return_6m": "6M",
+    "return_ytd": "YTD",
+    "return_1y": "1Y",
+    "rsi_14": "RSI(14)",
+    "price_vs_sma_20": "vs 20D MA",
+    "price_vs_sma_50": "vs 50D MA",
+    "price_vs_sma_200": "vs 200D MA",
+    "volatility_20d": "Vol 20D",
+    "volatility_60d": "Vol 60D",
+    "volatility_252d": "Vol 252D",
+    "beta_qqq": "Beta vs QQQ",
+    "beta_spy": "Beta vs SPY",
+    "correlation_qqq": "Corr vs QQQ",
+    "correlation_spy": "Corr vs SPY",
+    "net_margin": "Net margin",
+    "roe": "ROE",
+    "revenue_growth": "Rev growth",
+    "gross_margin": "Gross margin",
+    "operating_margin": "Op margin",
+    "fcf_margin": "FCF margin",
+    "roic": "ROIC",
+    "drawdown_52w": "52W drawdown",
+    "max_drawdown": "Max drawdown",
+    "relative_volume_20": "Rel vol (20D)",
+    "fiscal_period": "Fiscal period",
+    "period_end": "Period end",
+}
+
+TEARSHEET_GROUPS: dict[str, list[tuple[str, str]]] = {
+    "Returns & momentum": [
+        ("return_1d", "1 day"),
+        ("return_5d", "5 day"),
+        ("return_1m", "1 month"),
+        ("return_3m", "3 month"),
+        ("return_6m", "6 month"),
+        ("return_ytd", "YTD"),
+        ("return_1y", "1 year"),
+        ("momentum_3m", "Momentum 3M"),
+        ("momentum_6m", "Momentum 6M"),
+        ("momentum_12m", "Momentum 12M"),
+        ("drawdown_52w", "52W drawdown"),
+        ("max_drawdown", "Max drawdown"),
+        ("high_52w", "52W high"),
+        ("low_52w", "52W low"),
+    ],
+    "Technicals": [
+        ("latest_close", "Latest close"),
+        ("sma_20", "SMA 20D"),
+        ("sma_50", "SMA 50D"),
+        ("sma_200", "SMA 200D"),
+        ("price_vs_sma_20", "Price vs 20D MA"),
+        ("price_vs_sma_50", "Price vs 50D MA"),
+        ("price_vs_sma_200", "Price vs 200D MA"),
+        ("rsi_14", "RSI(14)"),
+        ("macd", "MACD"),
+        ("macd_signal", "MACD signal"),
+        ("macd_histogram", "MACD histogram"),
+        ("bollinger_percent_b", "Bollinger %B"),
+        ("atr_14", "ATR(14)"),
+        ("volume", "Volume"),
+        ("relative_volume_20", "Relative volume"),
+    ],
+    "Risk": [
+        ("volatility_20d", "Volatility 20D"),
+        ("volatility_60d", "Volatility 60D"),
+        ("volatility_252d", "Volatility 252D"),
+        ("beta_qqq", "Beta vs QQQ"),
+        ("beta_spy", "Beta vs SPY"),
+        ("correlation_qqq", "Correlation vs QQQ"),
+        ("correlation_spy", "Correlation vs SPY"),
+    ],
+    "Fundamentals": [
+        ("fiscal_period", "Fiscal period"),
+        ("period_end", "Period end"),
+        ("revenue", "Revenue"),
+        ("revenue_growth", "Revenue growth"),
+        ("gross_margin", "Gross margin"),
+        ("operating_margin", "Operating margin"),
+        ("net_margin", "Net margin"),
+        ("fcf_margin", "FCF margin"),
+        ("roe", "ROE"),
+        ("roic", "ROIC"),
+        ("free_cash_flow", "Free cash flow"),
+        ("fcf_conversion", "FCF conversion"),
+        ("cash_and_equivalents", "Cash"),
+        ("total_debt", "Total debt"),
+        ("net_debt", "Net debt"),
+        ("shares_outstanding", "Shares outstanding"),
+        ("capex_to_revenue", "Capex / revenue"),
+        ("rnd_to_revenue", "R&D / revenue"),
+        ("pe_ratio", "P/E"),
+        ("ps_ratio", "P/S"),
+        ("pb_ratio", "P/B"),
+        ("ev_to_sales", "EV / Sales"),
+        ("fcf_yield", "FCF yield"),
+    ],
+}
+
+FILING_FORM_LABELS = {
+    "10-K": "Annual report (10-K)",
+    "10-Q": "Quarterly report (10-Q)",
+    "8-K": "Current report (8-K)",
+    "4": "Insider transaction (Form 4)",
+}

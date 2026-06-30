@@ -23,6 +23,7 @@ class DataSource(str, Enum):
     """Origin of a dataset, recorded in provenance."""
 
     YFINANCE = "yfinance"  # unofficial, delayed 15-20 min, personal use only
+    MASSIVE = "massive"  # Massive.com REST API (formerly Polygon.io)
     SEC_EDGAR = "sec_edgar"  # official filings + XBRL company facts
     NASDAQ_INDEX = "nasdaq_index"  # official Nasdaq-100 constituent list (QQQ tracks this)
     QQQ_HOLDINGS = "qqq_holdings"  # Invesco QQQ holdings CSV (universe proxy)

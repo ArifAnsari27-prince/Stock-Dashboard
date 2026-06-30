@@ -170,14 +170,13 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    # Imported here so the only yfinance import stays inside the price source
-    # module's import graph, not at module top of the job.
-    from src.data_sources.prices import YFinancePriceSource
+    from src.data_sources.price_factory import get_price_source
     from src.storage.parquet_store import ParquetStore
 
     config = get_config()
     storage = ParquetStore(config.data_dir)
-    price_source = YFinancePriceSource()
+    price_source = get_price_source(config)
+    logger.info("Using price source: %s", config.price_source)
     run_price_refresh(price_source=price_source, storage=storage, config=config)
 
 

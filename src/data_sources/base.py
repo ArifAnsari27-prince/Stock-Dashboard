@@ -25,7 +25,8 @@ from src.models import DataSource, Filing, Fundamentals, PriceBar, Snapshot, Tic
 class PriceSource(ABC):
     """Source of historical/delayed OHLCV price bars.
 
-    The ONLY implementation that may import yfinance is prices.py (CLAUDE.md §2).
+    The ONLY yfinance import is prices.py; Massive is isolated in massive_prices.py
+    (CLAUDE.md §2).
     """
 
     @property
