@@ -16,12 +16,20 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import date, datetime, timezone
 from typing import Any, Protocol
 
+import pandas as pd
+
 from src.data_sources.base import PriceSource
 from src.models import DataSource, PriceBar, Provenance, Snapshot
 
 logger = logging.getLogger(__name__)
 
 SleepFn = Callable[[float], None]
+GroupedDailyFn = Callable[[str], Iterable["GroupedAggLike"]]
+
+
+def _norm_symbol(ticker: str) -> str:
+    """Normalize a ticker to the master-universe convention (BRK.B -> BRK-B)."""
+    return str(ticker).strip().upper().replace(".", "-").replace("/", "-")
 
 
 class AggLike(Protocol):
@@ -33,6 +41,12 @@ class AggLike(Protocol):
     close: float
     volume: float
     timestamp: int
+
+
+class GroupedAggLike(AggLike, Protocol):
+    """A grouped-daily aggregate additionally carries its own ticker."""
+
+    ticker: str
 
 
 def agg_timestamp_to_date(timestamp_ms: int) -> date:
@@ -69,6 +83,43 @@ def _is_nan(value: float) -> bool:
     return value != value  # noqa: PLR0124
 
 
+def grouped_aggs_to_bars(
+    aggs: Iterable[GroupedAggLike], symbols: set[str]
+) -> list[PriceBar]:
+    """Convert one day's grouped-daily aggs to PriceBars, keeping only `symbols` (pure).
+
+    `symbols` must be normalized (BRK-B form); each agg's own ticker is normalized
+    the same way before matching.
+    """
+    bars: list[PriceBar] = []
+    for agg in aggs:
+        ticker = getattr(agg, "ticker", None)
+        if ticker is None:
+            continue
+        symbol = _norm_symbol(ticker)
+        if symbol not in symbols:
+            continue
+        o, h, low, c, vol = agg.open, agg.high, agg.low, agg.close, agg.volume
+        if any(v is None for v in (o, h, low, c, vol)):  # type: ignore[redundant-expr]
+            continue
+        if any(_is_nan(v) for v in (o, h, low, c, vol)):
+            continue
+        close = float(c)
+        bars.append(
+            PriceBar(
+                symbol=symbol,
+                date=agg_timestamp_to_date(int(agg.timestamp)),
+                open=float(o),
+                high=float(h),
+                low=float(low),
+                close=close,
+                adj_close=close,
+                volume=int(vol),
+            )
+        )
+    return bars
+
+
 class MassivePriceSource(PriceSource):
     """Fetches daily OHLCV from Massive.com REST API, rate-limited per symbol."""
 
@@ -80,6 +131,7 @@ class MassivePriceSource(PriceSource):
         max_retries: int = 3,
         backoff_base_seconds: float = 30.0,
         list_aggs_fn: Callable[..., Iterable[AggLike]] | None = None,
+        grouped_daily_fn: GroupedDailyFn | None = None,
         sleep: SleepFn = time.sleep,
     ) -> None:
         self._api_key = api_key
@@ -88,6 +140,7 @@ class MassivePriceSource(PriceSource):
         self.backoff_base_seconds = backoff_base_seconds
         self._sleep = sleep
         self._list_aggs_fn = list_aggs_fn
+        self._grouped_daily_fn = grouped_daily_fn
         self._last_request_at: float | None = None
 
     @property
@@ -105,6 +158,79 @@ class MassivePriceSource(PriceSource):
 
     def _mark_request(self) -> None:
         self._last_request_at = time.monotonic()
+
+    def _resolve_grouped_fn(self) -> GroupedDailyFn:
+        if self._grouped_daily_fn is not None:
+            return self._grouped_daily_fn
+        from massive import RESTClient
+
+        client = RESTClient(self._api_key)
+
+        def grouped(day_iso: str) -> Iterable[GroupedAggLike]:
+            return client.get_grouped_daily_aggs(day_iso, adjusted=True)
+
+        return grouped
+
+    def _grouped_with_retry(self, grouped_fn: GroupedDailyFn, day_iso: str) -> list:
+        """One grouped-daily call with pacing + retry on rate limit; [] on failure."""
+        for attempt in range(self.max_retries):
+            self._pace()
+            self._mark_request()
+            try:
+                return list(grouped_fn(day_iso))
+            except Exception as exc:  # noqa: BLE001 — Massive raises varied HTTP errors
+                msg = str(exc).lower()
+                if ("429" in msg or "rate" in msg) and attempt + 1 < self.max_retries:
+                    wait = self.backoff_base_seconds * (2**attempt)
+                    logger.warning("Massive grouped-daily rate limit %s, sleeping %.0fs",
+                                   day_iso, wait)
+                    self._sleep(wait)
+                    continue
+                logger.warning("Massive grouped-daily failed for %s: %s", day_iso, exc)
+                return []
+        return []
+
+    def fetch_grouped_daily(
+        self, symbols: Sequence[str], start: date, end: date
+    ) -> Snapshot[PriceBar]:
+        """Fetch daily bars for `symbols` over [start, end] via grouped-daily aggregates.
+
+        ONE API call per trading day returns every US ticker, from which we keep
+        only `symbols`. This is the free-tier-friendly way to price thousands of
+        names: ~1 call/day incrementally, ~500 calls to backfill 2 years. Weekend
+        days are skipped; holidays return empty and are tolerated.
+        """
+        symset = {_norm_symbol(s) for s in symbols}
+        grouped_fn = self._resolve_grouped_fn()
+        days = pd.bdate_range(start, end)
+
+        logger.info(
+            "Massive grouped-daily: %d trading days, %d target symbols (%.1fs interval)",
+            len(days), len(symset), self.min_request_interval_seconds,
+        )
+        all_bars: list[PriceBar] = []
+        days_with_data = 0
+        for ts in days:
+            day_iso = ts.date().isoformat()
+            aggs = self._grouped_with_retry(grouped_fn, day_iso)
+            day_bars = grouped_aggs_to_bars(aggs, symset)
+            if day_bars:
+                days_with_data += 1
+            all_bars.extend(day_bars)
+
+        symbols_seen = {b.symbol for b in all_bars}
+        notes = (
+            f"grouped-daily: {len(symbols_seen)}/{len(symset)} symbols over "
+            f"{days_with_data}/{len(days)} trading days; Massive.com EOD (adjusted)"
+        )
+        return Snapshot[PriceBar](
+            provenance=Provenance(
+                source=self.source,
+                fetched_at=datetime.now(timezone.utc),
+                notes=notes,
+            ),
+            rows=all_bars,
+        )
 
     def _fetch_symbol_aggs(
         self, symbol: str, start: date, end: date

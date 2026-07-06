@@ -77,6 +77,19 @@ class Config:
     # Minimum seconds between Massive REST calls (free tier ≈ 5/min → 12s safe).
     massive_min_request_interval_seconds: float = 12.0
 
+    # --- Storage backend (object store / Cloudflare R2) ------------------
+    # DATA_URI selects where snapshots are read/written:
+    #   unset             -> local Parquet under data_dir (git-committed, V1 default)
+    #   "s3://bucket/pfx"  -> object store (Cloudflare R2 / any S3-compatible)
+    #   local path         -> local object store (DuckDB-backed), for testing
+    # The object store keeps full history off git (see docs/MULTI_INDEX_DESIGN.md).
+    data_uri: str | None = None
+    # S3/R2 credentials (required when data_uri is an s3:// URI).
+    r2_endpoint: str | None = None  # e.g. https://<acct>.r2.cloudflarestorage.com
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_region: str = "auto"
+
     # --- Universe --------------------------------------------------------
     # Nasdaq 100 is proxied by QQQ holdings (CLAUDE.md §1).
     universe_etf: str = "QQQ"
@@ -117,6 +130,35 @@ class Config:
             )
         return self.sec_user_agent
 
+    def s3_config(self) -> dict[str, str] | None:
+        """S3/R2 connection settings for DuckDB httpfs, or None for local storage.
+
+        Returns None unless `data_uri` is an s3:// URI. Raises if s3:// is
+        selected but credentials are missing, so misconfiguration fails loudly.
+        """
+        if not (self.data_uri or "").startswith("s3://"):
+            return None
+        missing = [
+            name
+            for name, value in (
+                ("R2_ENDPOINT", self.r2_endpoint),
+                ("R2_ACCESS_KEY_ID", self.r2_access_key_id),
+                ("R2_SECRET_ACCESS_KEY", self.r2_secret_access_key),
+            )
+            if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                f"DATA_URI is s3:// but these are unset: {missing}. Set them in "
+                ".env locally or as repo/Streamlit secrets."
+            )
+        return {
+            "endpoint": self.r2_endpoint,  # type: ignore[dict-item]
+            "key_id": self.r2_access_key_id,  # type: ignore[dict-item]
+            "secret": self.r2_secret_access_key,  # type: ignore[dict-item]
+            "region": self.r2_region,
+        }
+
     def require_massive_api_key(self) -> str:
         """Return the Massive API key or raise if unset."""
         if not self.massive_api_key:
@@ -148,4 +190,9 @@ def get_config() -> Config:
         sec_user_agent=os.environ.get("SEC_USER_AGENT"),
         price_source=os.environ.get("PRICE_SOURCE", "yfinance").strip().lower(),
         massive_api_key=massive_key,
+        data_uri=os.environ.get("DATA_URI"),
+        r2_endpoint=os.environ.get("R2_ENDPOINT"),
+        r2_access_key_id=os.environ.get("R2_ACCESS_KEY_ID"),
+        r2_secret_access_key=os.environ.get("R2_SECRET_ACCESS_KEY"),
+        r2_region=os.environ.get("R2_REGION", "auto"),
     )

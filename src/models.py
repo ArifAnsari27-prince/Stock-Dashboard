@@ -40,10 +40,13 @@ class FilingType(str, Enum):
 
 
 class Ticker(BaseModel):
-    """A single universe constituent.
+    """A single universe constituent (one row of the master multi-index universe).
 
-    Sourced from QQQ holdings as a Nasdaq 100 proxy. `cik` is needed downstream
-    for SEC EDGAR lookups (zero-padded 10-digit string when present).
+    The universe is the union of the supported indices (~Russell 3000 superset).
+    `memberships` records which indices this ticker belongs to (e.g.
+    ("nasdaq100", "sp500", "russell1000", "russell3000")). `cik` is needed
+    downstream for SEC EDGAR lookups (zero-padded 10-digit string when present).
+    `sector` is normalized to a canonical GICS-like taxonomy across sources.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -57,6 +60,16 @@ class Ticker(BaseModel):
     weight: float | None = Field(
         default=None,
         description="Index/ETF weight as a fraction in [0, 1], if known.",
+    )
+    sector: str | None = Field(
+        default=None, description="Canonical (GICS-like) sector, normalized across sources."
+    )
+    market_cap: float | None = Field(
+        default=None, description="Market capitalization in USD, if known."
+    )
+    memberships: tuple[str, ...] = Field(
+        default=(),
+        description="Index ids this ticker belongs to (nasdaq100/sp500/russell1000/russell3000).",
     )
 
 
@@ -93,6 +106,11 @@ class Fundamentals(BaseModel):
     )
     fiscal_period: str | None = Field(
         default=None, description="e.g. 'FY2024', 'Q3-2024'."
+    )
+    latest_filing_date: dt.date | None = Field(
+        default=None,
+        description="Date of the company's most recent 10-K/10-Q; used to skip "
+        "unchanged companies on incremental fundamentals refreshes.",
     )
 
     # --- Raw line items (USD) -------------------------------------------
@@ -201,6 +219,27 @@ class MetricsRow(BaseModel):
     latest_close: float | None = Field(
         default=None, description="Latest raw closing price (USD)."
     )
+
+
+class IndexAggregateRow(BaseModel):
+    """One row per index: construction + quantamental + performance aggregates (Phase D).
+
+    Identity fields are explicit; the wide, evolving set of aggregate metrics is
+    attached via `extra="allow"` from the compute functions.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    index_id: str
+    name: str | None = None
+
+
+class IndexSectorRow(BaseModel):
+    """Cap-weighted sector weight for one index (long format, for construction charts)."""
+
+    index_id: str
+    sector: str
+    weight: float = Field(description="Sector weight as a fraction of the index.")
 
 
 # Row type for the generic Snapshot wrapper.
