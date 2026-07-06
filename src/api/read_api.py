@@ -31,6 +31,8 @@ PRICES_DATASET = "prices"
 METRICS_DATASET = "metrics"
 FUNDAMENTALS_DATASET = "fundamentals"
 FILINGS_DATASET = "filings"
+AGGREGATES_DATASET = "index_aggregates"
+SECTORS_DATASET = "index_sectors"
 
 # OHLCV columns kept from a prices snapshot, in display order.
 _OHLCV_COLUMNS = ("open", "high", "low", "close", "adj_close", "volume")
@@ -72,27 +74,51 @@ class ReadAPI:
         """Provenance of a dataset's latest snapshot (source, fetched_at, disclaimer)."""
         return _extract_provenance(self._read_latest(name))
 
+    def _prices_for_symbol(self, symbol: str) -> pd.DataFrame:
+        """Rows of the prices dataset for one symbol.
+
+        On an object store, prices are date-partitioned; read them with a pushed-down
+        predicate so only that symbol's data is scanned. On a Parquet store, prices
+        are a single latest snapshot we filter in memory.
+        """
+        safe = symbol.replace("'", "")
+        if hasattr(self._storage, "read_dataset"):
+            return self._storage.read_dataset(  # type: ignore[attr-defined]
+                PRICES_DATASET, where=f"upper(symbol) = '{safe}'"
+            )
+        prices = self._read_latest(PRICES_DATASET)
+        if prices.empty or "symbol" not in prices.columns:
+            return pd.DataFrame()
+        return prices[prices["symbol"].str.upper() == symbol]
+
     def get_universe(self) -> pd.DataFrame:
         """The current constituent list (symbol, name, cik, weight)."""
         return _strip_provenance(self._read_latest(UNIVERSE_DATASET))
 
-    def get_table(self) -> pd.DataFrame:
+    def get_table(self, index: str | None = None) -> pd.DataFrame:
         """The dashboard grid: one row per ticker, metrics joined with fundamentals.
 
         Left-joins the latest `fundamentals` onto the latest `metrics` by symbol.
-        Empty if no metrics snapshot exists yet. Provenance columns are stripped;
-        use `provenance()` for the data's source/timestamp.
+        If `index` is given (e.g. "sp500"), filters to that index's members via the
+        `in_<index>` boolean column (empty if that column is absent). Empty if no
+        metrics snapshot exists yet. Provenance columns are stripped.
         """
         metrics = self._read_latest(METRICS_DATASET)
         if metrics.empty:
             return pd.DataFrame()
         table = _strip_provenance(metrics)
 
+        if index:
+            col = f"in_{index}"
+            if col not in table.columns:
+                return pd.DataFrame()
+            table = table[table[col] == True]  # noqa: E712 — pandas boolean mask
+
         fundamentals = self._read_latest(FUNDAMENTALS_DATASET)
         if not fundamentals.empty:
             funds = _strip_provenance(fundamentals)
             table = table.merge(funds, on="symbol", how="left", suffixes=("", "_fund"))
-        return table
+        return table.reset_index(drop=True)
 
     def get_price_history(
         self, ticker: str, indicators: bool = True
@@ -107,13 +133,9 @@ class ReadAPI:
         bollinger_upper/middle/lower (all on adjusted close). Empty if the symbol
         has no price snapshot yet. Works for benchmarks too (e.g. "QQQ", "SPY").
         """
-        prices = self._read_latest(PRICES_DATASET)
-        if prices.empty or "symbol" not in prices.columns:
-            return pd.DataFrame()
-
         symbol = ticker.upper()
-        rows = prices[prices["symbol"].str.upper() == symbol]
-        if rows.empty:
+        rows = self._prices_for_symbol(symbol)
+        if rows.empty or "symbol" not in rows.columns:
             return pd.DataFrame()
 
         df = _strip_provenance(rows).copy()
@@ -209,18 +231,72 @@ class ReadAPI:
         )
         return overview
 
+    # --- Multi-index comparison (Phase E) --------------------------------
+
+    def get_indices(self) -> list[dict]:
+        """List the available indices (id, name, ETF proxy) from the aggregates table."""
+        aggs = _strip_provenance(self._read_latest(AGGREGATES_DATASET))
+        if aggs.empty:
+            return []
+        cols = [c for c in ("index_id", "name", "etf") if c in aggs.columns]
+        return aggs[cols].to_dict("records")
+
+    def get_index_comparison(self) -> dict[str, object]:
+        """Per-index aggregates + sector weights for the comparison page.
+
+        Returns `{aggregates: [...one row per index...], sectors: [...index x
+        sector x weight...], provenance: {...}}`. Empty lists if not computed yet.
+        """
+        aggs = _strip_provenance(self._read_latest(AGGREGATES_DATASET))
+        sectors = _strip_provenance(self._read_latest(SECTORS_DATASET))
+        return {
+            "aggregates": aggs.to_dict("records") if not aggs.empty else [],
+            "sectors": sectors.to_dict("records") if not sectors.empty else [],
+            "provenance": self.provenance(AGGREGATES_DATASET),
+        }
+
+    def get_index_performance(self, rebased: bool = True) -> pd.DataFrame:
+        """Index ETF-proxy price series as date x index_id, for the relative chart.
+
+        Reads each index's ETF proxy history from `prices` and pivots to one column
+        per index. When `rebased=True`, each series starts at 100 for easy relative
+        comparison. Empty if no aggregates/prices exist yet.
+        """
+        indices = self.get_indices()
+        etf_to_index = {i["etf"]: i["index_id"] for i in indices if i.get("etf")}
+        if not etf_to_index:
+            return pd.DataFrame()
+
+        frames = []
+        for etf, index_id in etf_to_index.items():
+            hist = self._prices_for_symbol(etf.upper())
+            if hist.empty or "adj_close" not in hist.columns:
+                continue
+            s = hist.copy()
+            s["date"] = pd.to_datetime(s["date"])
+            series = s.sort_values("date").set_index("date")["adj_close"].rename(index_id)
+            frames.append(series)
+        if not frames:
+            return pd.DataFrame()
+
+        wide = pd.concat(frames, axis=1).sort_index()
+        if rebased:
+            wide = wide.apply(lambda col: col / col.dropna().iloc[0] * 100.0 if col.dropna().size else col)
+        return wide
+
 
 @lru_cache(maxsize=1)
 def default_read_api() -> ReadAPI:
-    """Build a ReadAPI backed by the Parquet store at the configured data dir.
+    """Build a ReadAPI backed by the configured storage (local Parquet or R2 object store).
 
-    Cached so the frontend can call the module-level helpers freely. Importing
-    storage/config here keeps that dependency out of the frontend.
+    Cached so the frontend can call the module-level helpers freely. The storage
+    backend is chosen by DATA_URI (see storage/factory.py); importing it here keeps
+    that dependency out of the frontend.
     """
     from src.config import get_config
-    from src.storage.parquet_store import ParquetStore
+    from src.storage.factory import get_storage
 
-    return ReadAPI(ParquetStore(get_config().data_dir))
+    return ReadAPI(get_storage(get_config()))
 
 
 def get_universe() -> pd.DataFrame:
@@ -228,9 +304,24 @@ def get_universe() -> pd.DataFrame:
     return default_read_api().get_universe()
 
 
-def get_table() -> pd.DataFrame:
-    """Module-level convenience: dashboard grid via the default store."""
-    return default_read_api().get_table()
+def get_table(index: str | None = None) -> pd.DataFrame:
+    """Module-level convenience: dashboard grid (optionally one index) via the default store."""
+    return default_read_api().get_table(index=index)
+
+
+def get_indices() -> list[dict]:
+    """Module-level convenience: available indices via the default store."""
+    return default_read_api().get_indices()
+
+
+def get_index_comparison() -> dict[str, object]:
+    """Module-level convenience: per-index comparison tables via the default store."""
+    return default_read_api().get_index_comparison()
+
+
+def get_index_performance(rebased: bool = True) -> pd.DataFrame:
+    """Module-level convenience: rebased index performance series via the default store."""
+    return default_read_api().get_index_performance(rebased=rebased)
 
 
 def get_tearsheet(ticker: str) -> dict[str, object]:

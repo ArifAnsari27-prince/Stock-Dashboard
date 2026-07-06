@@ -1,0 +1,51 @@
+name: refresh-index-data
+
+# Daily EOD pipeline for the full multi-index universe (~3,000 names) -> R2.
+# Order matters: prices -> filings -> fundamentals (reads filings dates) ->
+# aggregates (reads prices+fundamentals). Data is written to R2, so there is no
+# git commit step. First run backfills (~2yr prices + all fundamentals) and can
+# take ~2-3h — prefer running it once via "Run workflow" before relying on cron.
+on:
+  schedule:
+    - cron: "0 3 * * 2-6" # Tue-Sat 03:00 UTC (covers Mon-Fri US market EOD)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-index-data
+  cancel-in-progress: false
+
+env:
+  DATA_URI: ${{ vars.DATA_URI }}
+  R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_REGION: ${{ vars.R2_REGION }}
+  MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+  SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-backend.txt
+
+      - name: Prices + metrics (Massive grouped-daily)
+        run: python -m src.jobs.refresh_index_prices
+
+      - name: Filing links (SEC EDGAR)
+        run: python -m src.jobs.refresh_index_filings
+
+      - name: Fundamentals (SEC EDGAR, incremental)
+        run: python -m src.jobs.refresh_index_fundamentals
+
+      - name: Index aggregates
+        run: python -m src.jobs.refresh_index_aggregates
