@@ -31,6 +31,14 @@ def test_grouped_aggs_to_bars_filters_and_normalizes():
     assert all(b.date == date(2026, 6, 30) for b in bars)
 
 
+def test_grouped_aggs_dedupes_repeated_ticker():
+    # Massive occasionally returns a ticker twice in one day's response.
+    ts = _ms(date(2026, 6, 30))
+    aggs = [FakeAgg("TPC", ts, c=10.0), FakeAgg("TPC", ts, c=11.0)]
+    bars = grouped_aggs_to_bars(aggs, {"TPC"})
+    assert len(bars) == 1  # kept once, not twice
+
+
 def test_grouped_aggs_skips_incomplete():
     ts = _ms(date(2026, 6, 30))
     bad = FakeAgg("AAPL", ts)

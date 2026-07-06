@@ -167,7 +167,11 @@ def frames_from_price_history(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     df["date"] = pd.to_datetime(df["date"])
     frames: dict[str, pd.DataFrame] = {}
     for symbol, group in df.groupby("symbol"):
-        frames[str(symbol)] = group.set_index("date").sort_index()
+        frame = group.set_index("date").sort_index()
+        # Some data sources emit a symbol twice on a day; a duplicated date index
+        # breaks downstream align/concat, so keep the last row per date.
+        frame = frame[~frame.index.duplicated(keep="last")]
+        frames[str(symbol)] = frame
     return frames
 
 
