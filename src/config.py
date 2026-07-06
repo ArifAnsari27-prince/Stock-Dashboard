@@ -74,8 +74,9 @@ class Config:
     # Massive.com API key (free tier: EOD data, 5 requests/min). Also accepts
     # POLYGON_API_KEY (deprecated alias). Required when price_source=massive.
     massive_api_key: str | None = None
-    # Minimum seconds between Massive REST calls (free tier ≈ 5/min → 12s safe).
-    massive_min_request_interval_seconds: float = 12.0
+    # Minimum seconds between Massive REST calls. Free tier ≈ 5/min; 13s (~4.6/min)
+    # keeps margin so we don't trip the limit under clock skew or brief retries.
+    massive_min_request_interval_seconds: float = 13.0
 
     # --- Storage backend (object store / Cloudflare R2) ------------------
     # DATA_URI selects where snapshots are read/written:

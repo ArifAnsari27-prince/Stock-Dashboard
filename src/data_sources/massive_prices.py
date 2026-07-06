@@ -127,21 +127,42 @@ class MassivePriceSource(PriceSource):
         self,
         api_key: str,
         *,
-        min_request_interval_seconds: float = 12.0,
+        min_request_interval_seconds: float = 13.0,
         max_retries: int = 3,
         backoff_base_seconds: float = 30.0,
+        connect_timeout_seconds: float = 15.0,
+        read_timeout_seconds: float = 120.0,
+        client_retries: int = 1,
         list_aggs_fn: Callable[..., Iterable[AggLike]] | None = None,
         grouped_daily_fn: GroupedDailyFn | None = None,
         sleep: SleepFn = time.sleep,
     ) -> None:
         self._api_key = api_key
+        # 13s spacing (~4.6/min) keeps margin under the 5/min free-tier limit.
         self.min_request_interval_seconds = min_request_interval_seconds
         self.max_retries = max_retries
         self.backoff_base_seconds = backoff_base_seconds
+        # The grouped-daily payload is large (~12k tickers), so the default 10s
+        # read timeout is too short — bump it. Keep the client's own retries low
+        # so a failure surfaces to our paced retry instead of bursting past 5/min.
+        self._connect_timeout = connect_timeout_seconds
+        self._read_timeout = read_timeout_seconds
+        self._client_retries = client_retries
         self._sleep = sleep
         self._list_aggs_fn = list_aggs_fn
         self._grouped_daily_fn = grouped_daily_fn
         self._last_request_at: float | None = None
+
+    def _rest_client(self):
+        """Construct a Massive RESTClient with our timeout/retry settings."""
+        from massive import RESTClient
+
+        return RESTClient(
+            self._api_key,
+            connect_timeout=self._connect_timeout,
+            read_timeout=self._read_timeout,
+            retries=self._client_retries,
+        )
 
     @property
     def source(self) -> DataSource:
@@ -162,9 +183,7 @@ class MassivePriceSource(PriceSource):
     def _resolve_grouped_fn(self) -> GroupedDailyFn:
         if self._grouped_daily_fn is not None:
             return self._grouped_daily_fn
-        from massive import RESTClient
-
-        client = RESTClient(self._api_key)
+        client = self._rest_client()
 
         def grouped(day_iso: str) -> Iterable[GroupedAggLike]:
             return client.get_grouped_daily_aggs(day_iso, adjusted=True)
@@ -238,9 +257,7 @@ class MassivePriceSource(PriceSource):
         """Fetch daily adjusted aggregates for one symbol with retry on rate limit."""
         list_aggs = self._list_aggs_fn
         if list_aggs is None:
-            from massive import RESTClient
-
-            client = RESTClient(self._api_key)
+            client = self._rest_client()
 
             def list_aggs(**kwargs: Any) -> Iterable[AggLike]:
                 return client.list_aggs(**kwargs)
