@@ -8,7 +8,26 @@ name: refresh-index-data
 on:
   schedule:
     - cron: "0 3 * * 2-6" # Tue-Sat 03:00 UTC (covers Mon-Fri US market EOD)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    # Manual runs can skip steps (e.g. run only filings/fundamentals/aggregates
+    # when prices are already backfilled). Scheduled runs always run everything.
+    inputs:
+      run_prices:
+        description: "Run prices + metrics"
+        type: boolean
+        default: true
+      run_filings:
+        description: "Run filing links"
+        type: boolean
+        default: true
+      run_fundamentals:
+        description: "Run fundamentals"
+        type: boolean
+        default: true
+      run_aggregates:
+        description: "Run index aggregates"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -39,13 +58,17 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-backend.txt
 
       - name: Prices + metrics (Massive grouped-daily)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_prices }}
         run: python -m src.jobs.refresh_index_prices
 
       - name: Filing links (SEC EDGAR)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_filings }}
         run: python -m src.jobs.refresh_index_filings
 
       - name: Fundamentals (SEC EDGAR, incremental)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_fundamentals }}
         run: python -m src.jobs.refresh_index_fundamentals
 
       - name: Index aggregates
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_aggregates }}
         run: python -m src.jobs.refresh_index_aggregates

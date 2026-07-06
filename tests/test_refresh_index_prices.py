@@ -83,6 +83,22 @@ def test_bulk_refresh_writes_partitions_and_metrics(store):
     assert pd.notna(aapl["return_1d"])
 
 
+def test_frames_from_price_history_dedupes_dates():
+    from src.jobs.common import frames_from_price_history
+    # Same symbol/date twice -> frame must have a unique date index.
+    df = pd.DataFrame({
+        "symbol": ["TPC", "TPC", "TPC"],
+        "date": ["2026-06-29", "2026-06-29", "2026-06-30"],
+        "adj_close": [10.0, 11.0, 12.0], "high": [1, 1, 1], "low": [1, 1, 1],
+        "close": [10.0, 11.0, 12.0], "volume": [1, 1, 1],
+    })
+    frames = frames_from_price_history(df)
+    tpc = frames["TPC"]
+    assert not tpc.index.duplicated().any()
+    assert len(tpc) == 2  # one row per date
+    assert tpc.loc["2026-06-29", "adj_close"] == 11.0  # keep last
+
+
 def test_bulk_refresh_bootstraps_universe(tmp_path):
     # No universe stored -> should fetch (inject via monkeypatch-free fake).
     store = ObjectStore(str(tmp_path))

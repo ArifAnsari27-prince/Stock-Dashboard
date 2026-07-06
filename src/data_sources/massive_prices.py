@@ -92,13 +92,15 @@ def grouped_aggs_to_bars(
     the same way before matching.
     """
     bars: list[PriceBar] = []
+    seen: set[str] = set()  # grouped-daily occasionally repeats a ticker in a day
     for agg in aggs:
         ticker = getattr(agg, "ticker", None)
         if ticker is None:
             continue
         symbol = _norm_symbol(ticker)
-        if symbol not in symbols:
+        if symbol not in symbols or symbol in seen:
             continue
+        seen.add(symbol)
         o, h, low, c, vol = agg.open, agg.high, agg.low, agg.close, agg.volume
         if any(v is None for v in (o, h, low, c, vol)):  # type: ignore[redundant-expr]
             continue
