@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-import pytest
-
 from src.data_sources.base import FilingsSource, FundamentalsSource
 from src.jobs.common import ensure_universe_ciks
 from src.jobs.refresh_filings import run_filings_refresh

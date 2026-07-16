@@ -28,7 +28,6 @@ from __future__ import annotations
 import io
 import logging
 import re
-from collections.abc import Sequence
 from datetime import date, datetime, timezone
 
 import pandas as pd
