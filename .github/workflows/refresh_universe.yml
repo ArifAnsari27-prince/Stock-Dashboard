@@ -1,9 +1,10 @@
 name: refresh-universe
 
 # Weekly Nasdaq-100 constituent refresh. The Nasdaq API needs no secret.
+# LEGACY (V1 git-commit pipeline). Schedule disabled per the architecture
+# audit Phase A (owner decisions Q2/Q4): the R2 multi-index pipeline is
+# authoritative; this job is kept as a manual fallback only.
 on:
-  schedule:
-    - cron: "0 6 * * 0" # Sundays 06:00 UTC
   workflow_dispatch: {}
 
 permissions:

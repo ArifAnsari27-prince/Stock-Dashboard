@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import pandas as pd
 import pytest
 
 from src.api.read_api import ReadAPI
 from src.models import (
-    DataSource, Fundamentals, IndexAggregateRow, IndexSectorRow, MetricsRow,
-    PriceBar, Provenance, Snapshot,
+    DataSource,
+    Fundamentals,
+    IndexAggregateRow,
+    IndexSectorRow,
+    MetricsRow,
+    PriceBar,
+    Provenance,
+    Snapshot,
 )
 from src.storage.object_store import ObjectStore
 

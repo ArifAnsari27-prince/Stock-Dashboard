@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import io
 import logging
-import re
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -205,8 +204,9 @@ def assemble_master(
             if present
         )
 
-        # Sector: prefer S&P GICS, then screener.
+        # Sector: prefer S&P GICS, then screener. Industry only exists on screener.
         sector = (sp_row or {}).get("sector") or (scr or {}).get("sector")
+        industry = (scr or {}).get("industry")
         # Name: prefer screener (clean), then S&P, then Nasdaq-100.
         name = (
             (scr or {}).get("name")
@@ -220,6 +220,7 @@ def assemble_master(
                 symbol=symbol,
                 name=name,
                 sector=sector,
+                industry=industry,
                 market_cap=market_cap,
                 memberships=memberships,
             )

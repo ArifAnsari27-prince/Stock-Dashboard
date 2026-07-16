@@ -69,6 +69,7 @@ USD_LARGE_COLUMNS: frozenset[str] = frozenset(
         "net_debt",
         "capex",
         "research_and_development",
+        "market_cap",
     }
 )
 
@@ -101,6 +102,8 @@ RETURN_COLUMNS: frozenset[str] = frozenset(
 DEFAULT_SCREENER_COLUMNS: list[str] = [
     "symbol",
     "name",
+    "sector",
+    "market_cap",
     "latest_close",
     "return_1d",
     "return_1m",
@@ -119,6 +122,25 @@ DEFAULT_SCREENER_COLUMNS: list[str] = [
 COLUMN_LABELS: dict[str, str] = {
     "symbol": "Symbol",
     "name": "Company",
+    "sector": "Sector",
+    "industry": "Industry",
+    "market_cap": "Market cap",
+    "volume": "Volume",
+    "momentum_3m": "Momentum 3M",
+    "momentum_6m": "Momentum 6M",
+    "momentum_12m": "Momentum 12M",
+    "high_52w": "52W high",
+    "low_52w": "52W low",
+    "atr_14": "ATR(14)",
+    "shares_outstanding": "Shares out",
+    "pe_ratio": "P/E",
+    "ps_ratio": "P/S",
+    "pb_ratio": "P/B",
+    "ev_to_sales": "EV/Sales",
+    "fcf_yield": "FCF yield",
+    "free_cash_flow": "FCF",
+    "revenue": "Revenue",
+    "net_debt": "Net debt",
     "weight": "Weight",
     "as_of": "As of",
     "latest_close": "Price",

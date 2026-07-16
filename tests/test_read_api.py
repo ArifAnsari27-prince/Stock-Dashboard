@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-import pytest
-
 import pandas as pd
+import pytest
 
 from src.api.read_api import ReadAPI
 from src.models import (

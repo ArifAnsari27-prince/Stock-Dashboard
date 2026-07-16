@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 
@@ -39,6 +41,25 @@ INDEX_MEMBERSHIP_COLUMNS = {
 
 UniverseFetchFn = Callable[[], Snapshot[Ticker]]
 MasterUniverseFetchFn = Callable[[], Snapshot[Ticker]]
+
+
+def write_job_summary(title: str, summary: dict[str, object]) -> None:
+    """Append a Markdown run summary to GitHub Actions' step summary, if present.
+
+    No-op outside Actions (GITHUB_STEP_SUMMARY unset), so jobs stay
+    orchestrator-agnostic. Failures here must never fail the job itself.
+    """
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return
+    try:
+        lines = [f"### {title}", "", "| key | value |", "| --- | --- |"]
+        lines += [f"| {key} | {value} |" for key, value in summary.items()]
+        lines.append("")
+        with Path(path).open("a") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError as exc:  # pragma: no cover — environment-specific
+        logger.warning("Could not write job summary: %s", exc)
 
 
 def _none_if_nan(value: object) -> object | None:
@@ -132,6 +153,7 @@ def _master_from_frame(df: pd.DataFrame) -> list[Ticker]:
                 cik=_none_if_nan(record.get("cik")),
                 weight=_none_if_nan(record.get("weight")),
                 sector=_none_if_nan(record.get("sector")),
+                industry=_none_if_nan(record.get("industry")),
                 market_cap=_none_if_nan(record.get("market_cap")),
                 memberships=memberships,
             )
@@ -240,6 +262,7 @@ def build_metrics_rows(
                 name=ticker.name,
                 weight=ticker.weight,
                 sector=ticker.sector,
+                industry=ticker.industry,
                 market_cap=ticker.market_cap,
                 as_of=frame.index[-1].date(),
                 latest_close=float(frame["close"].iloc[-1]),

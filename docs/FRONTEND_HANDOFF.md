@@ -1,3 +1,7 @@
+> **Superseded (2026-07-16):** this handoff described the Nasdaq-100-only V1.
+> Current contract: `docs/api-contract.md` · units: `docs/data-dictionary.md`
+> · architecture/roadmap: `docs/ARCHITECTURE_AUDIT.md`. Kept for history.
+
 # Frontend Handoff — Nasdaq 100 Dashboard (Streamlit)
 
 This document is the complete spec for building the **Streamlit frontend** against the

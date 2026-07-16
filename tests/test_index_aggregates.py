@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,13 @@ from src.compute import index_aggregates as agg
 from src.data_sources.indices import NASDAQ100, SP500
 from src.jobs.refresh_index_aggregates import run_index_aggregates_refresh
 from src.models import (
-    DataSource, Fundamentals, MetricsRow, PriceBar, Provenance, Snapshot, Ticker,
+    DataSource,
+    Fundamentals,
+    MetricsRow,
+    PriceBar,
+    Provenance,
+    Snapshot,
+    Ticker,
 )
 from src.storage.object_store import ObjectStore
 

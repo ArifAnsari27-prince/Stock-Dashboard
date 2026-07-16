@@ -25,7 +25,7 @@ def _make_bars(symbol: str, n: int = 300, base: float = 100.0) -> list[PriceBar]
     rng = np.random.default_rng(abs(hash(symbol)) % (2**32))
     prices = base * np.cumprod(1.0 + rng.normal(0.0003, 0.01, n))
     bars = []
-    for d, p in zip(dates, prices):
+    for d, p in zip(dates, prices, strict=False):
         bars.append(
             PriceBar(
                 symbol=symbol,

@@ -17,7 +17,6 @@ from src.data_sources.edgar import (
 )
 from src.models import DataSource, FilingType, Ticker
 
-
 # --- pure parsers ------------------------------------------------------------
 
 

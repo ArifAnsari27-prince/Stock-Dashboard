@@ -33,6 +33,7 @@ FUNDAMENTALS_DATASET = "fundamentals"
 FILINGS_DATASET = "filings"
 AGGREGATES_DATASET = "index_aggregates"
 SECTORS_DATASET = "index_sectors"
+NEWS_DATASET = "news"
 
 # OHLCV columns kept from a prices snapshot, in display order.
 _OHLCV_COLUMNS = ("open", "high", "low", "close", "adj_close", "volume")
@@ -231,6 +232,26 @@ class ReadAPI:
         )
         return overview
 
+    def get_news(self, symbol: str | None = None, limit: int = 50) -> pd.DataFrame:
+        """Cached headlines, newest first.
+
+        `symbol=None` returns general market headlines (rows with no symbol);
+        a symbol returns that ticker's cached company headlines. Empty if the
+        news job hasn't produced a snapshot (the feature is optional).
+        """
+        news = self._read_latest(NEWS_DATASET)
+        if news.empty or "headline" not in news.columns:
+            return pd.DataFrame()
+        df = _strip_provenance(news)
+        if "symbol" in df.columns:
+            if symbol:
+                df = df[df["symbol"].astype(str).str.upper() == symbol.upper()]
+            else:
+                df = df[df["symbol"].isna()]
+        if "published_at" in df.columns:
+            df = df.sort_values("published_at", ascending=False)
+        return df.head(limit).reset_index(drop=True)
+
     # --- Multi-index comparison (Phase E) --------------------------------
 
     def get_indices(self) -> list[dict]:
@@ -337,3 +358,8 @@ def get_price_history(ticker: str, indicators: bool = True) -> pd.DataFrame:
 def get_market_overview() -> dict[str, object]:
     """Module-level convenience: market overview via the default store."""
     return default_read_api().get_market_overview()
+
+
+def get_news(symbol: str | None = None, limit: int = 50) -> pd.DataFrame:
+    """Module-level convenience: cached news headlines via the default store."""
+    return default_read_api().get_news(symbol=symbol, limit=limit)
