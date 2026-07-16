@@ -25,7 +25,6 @@ The same code path serves both; only DuckDB's S3 secret differs. Implements the
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 import duckdb
@@ -53,6 +52,17 @@ def _snapshot_to_frame(snapshot: Snapshot) -> pd.DataFrame:
 def _sql_str(value: str) -> str:
     """Single-quote-escape a string for inlining into DuckDB SQL."""
     return "'" + value.replace("'", "''") + "'"
+
+
+# DuckDB message fragments that mean "the requested objects simply don't exist"
+# (an expected empty state), as opposed to a real operational failure.
+_MISSING_DATA_FRAGMENTS = ("no files found", "no such file", "does not exist", "404")
+
+
+def _is_missing_data(exc: Exception) -> bool:
+    """True when a DuckDB error means the dataset has no objects yet."""
+    message = str(exc).lower()
+    return any(fragment in message for fragment in _MISSING_DATA_FRAGMENTS)
 
 
 class ObjectStore(Storage):
@@ -166,8 +176,13 @@ class ObjectStore(Storage):
         try:
             with self._connect() as con:
                 return con.execute(sql).df()
-        except (duckdb.IOException, duckdb.CatalogException):
-            return pd.DataFrame()
+        except (duckdb.IOException, duckdb.CatalogException) as exc:
+            # "Dataset not created yet" is a normal empty state; anything else
+            # (auth failure, network outage, corrupt object) must surface rather
+            # than masquerade as an empty dataset.
+            if _is_missing_data(exc):
+                return pd.DataFrame()
+            raise
 
     def read_history(self, name: str) -> pd.DataFrame:
         """Storage ABC hook — all partitions unioned."""

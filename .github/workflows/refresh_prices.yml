@@ -4,10 +4,10 @@ name: refresh-prices
 # yfinance (default): ~15 min cadence, no API key.
 # Massive free tier: 5 req/min → ~22 min for 104 symbols; set PRICE_SOURCE=massive
 # and MASSIVE_API_KEY secret, and prefer workflow_dispatch or a daily cron.
+# LEGACY (V1 git-commit pipeline). Schedule disabled per the architecture
+# audit Phase A (owner decisions Q2/Q4): the R2 multi-index pipeline is
+# authoritative; this job is kept as a manual fallback only.
 on:
-  schedule:
-    - cron: "*/15 13-21 * * 1-5" # weekdays, 13:00-21:45 UTC (yfinance)
-    - cron: "30 21 * * 1-5" # weekdays 21:30 UTC — daily EOD refresh (Massive free tier)
   workflow_dispatch: {}
 
 permissions:

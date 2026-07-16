@@ -30,6 +30,7 @@ from src.jobs.common import (
     build_metrics_rows,
     frames_from_price_history,
     load_master_universe,
+    write_job_summary,
 )
 from src.models import DataSource, PriceBar, Provenance, Snapshot
 
@@ -152,7 +153,10 @@ def main() -> None:
         config.require_massive_api_key(),
         min_request_interval_seconds=config.massive_min_request_interval_seconds,
     )
-    run_index_price_refresh(price_source=price_source, storage=storage, config=config)
+    summary = run_index_price_refresh(
+        price_source=price_source, storage=storage, config=config
+    )
+    write_job_summary("Index price refresh", summary)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+# Lint config (audit Phase A). Kept lenient on the existing codebase: correctness
+# rules on, style churn off. Tighten deliberately, not retroactively.
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+  "E501",  # long lines exist in docstrings/URLs; not worth churn
+  "B008",  # streamlit patterns
+  "UP035", "UP006", "UP007", "UP017",  # typing/datetime style churn on existing code
+]
+
+[lint.per-file-ignores]
+"streamlit_app.py" = ["E402"]  # secrets bridge must run before src imports
