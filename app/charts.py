@@ -88,43 +88,117 @@ def advancers_bar(advancers: int, decliners: int) -> go.Figure:
     return fig
 
 
-def return_treemap(table: pd.DataFrame, *, metric: str = "return_1d") -> go.Figure:
+_DIVERGING_SCALE = [
+    [0.0, "#7f1d1d"],
+    [0.35, "#991b1b"],
+    [0.5, "#1f2937"],
+    [0.65, "#14532d"],
+    [1.0, "#059669"],
+]
+
+
+def metric_treemap(
+    table: pd.DataFrame,
+    *,
+    metric: str = "return_1d",
+    group_by: list[str] | None = None,
+    size_by: str = "market_cap",
+    is_fraction: bool = True,
+    diverging: bool = True,
+    metric_label: str | None = None,
+) -> go.Figure:
+    """Treemap of the universe colored by `metric`.
+
+    `group_by` nests tiles under grouping columns (e.g. ["sector"] or
+    ["sector", "industry"]); tile area is `size_by` (falls back to equal sizes
+    when absent/null). `is_fraction` picks % vs plain number formatting;
+    `diverging=False` uses a sequential scale (for unsigned metrics like RSI).
+    """
+    group_by = [c for c in (group_by or []) if c in table.columns]
     if table.empty or metric not in table.columns:
         return go.Figure()
 
-    df = table[["symbol", "name", metric, "latest_close"]].dropna(subset=["symbol", metric]).copy()
+    keep = ["symbol", "name", metric] + group_by
+    if size_by in table.columns:
+        keep.append(size_by)
+    df = table[list(dict.fromkeys(keep))].dropna(subset=["symbol", metric]).copy()
     if df.empty:
         return go.Figure()
 
+    for col in group_by:
+        df[col] = df[col].fillna("Unknown")
+
     labels = df["symbol"] + " · " + df["name"].fillna("").str.slice(0, 18)
-    colors = df[metric]
-    size = df["latest_close"].fillna(1).clip(lower=1)
+    if size_by in df.columns:
+        df["_tile_size"] = pd.to_numeric(df[size_by], errors="coerce").fillna(1).clip(lower=1)
+    else:
+        df["_tile_size"] = 1.0
+
+    # Build the hierarchy: group levels as parent nodes, symbols as leaves.
+    node_ids: list[str] = []
+    node_labels: list[str] = []
+    node_parents: list[str] = []
+    node_values: list[float] = []
+    node_colors: list[float | None] = []
+
+    for depth in range(len(group_by)):
+        levels = group_by[: depth + 1]
+        sizes = df.groupby(levels, dropna=False)["_tile_size"].sum()
+        for key, total in sizes.items():
+            key_tuple = key if isinstance(key, tuple) else (key,)
+            node_ids.append("/".join(str(k) for k in key_tuple))
+            node_labels.append(str(key_tuple[-1]))
+            node_parents.append("/".join(str(k) for k in key_tuple[:-1]))
+            node_values.append(float(total))
+            node_colors.append(None)
+
+    leaf_parent = (
+        df[group_by].astype(str).agg("/".join, axis=1) if group_by
+        else pd.Series("", index=df.index)
+    )
+    leaf_ids = (leaf_parent + "/" + df["symbol"]) if group_by else df["symbol"]
+    node_ids += leaf_ids.tolist()
+    node_labels += labels.tolist()
+    node_parents += leaf_parent.tolist()
+    node_values += df["_tile_size"].tolist()
+    node_colors += df[metric].tolist()
+
+    value_format = ".2%" if is_fraction else ",.1f"
+    marker = dict(
+        colors=[c if c is not None else 0 for c in node_colors],
+        showscale=True,
+        colorbar=dict(
+            title=metric_label or metric,
+            tickformat=".1%" if is_fraction else ",.0f",
+            tickcolor="#a3a3a3",
+        ),
+    )
+    if diverging:
+        marker["colorscale"] = _DIVERGING_SCALE
+        marker["cmid"] = 0
+    else:
+        marker["colorscale"] = [[0.0, "#1f2937"], [1.0, "#059669"]]
 
     fig = go.Figure(
         go.Treemap(
-            labels=labels,
-            parents=[""] * len(df),
-            values=size,
-            marker=dict(
-                colors=colors,
-                colorscale=[
-                    [0.0, "#7f1d1d"],
-                    [0.35, "#991b1b"],
-                    [0.5, "#1f2937"],
-                    [0.65, "#14532d"],
-                    [1.0, "#059669"],
-                ],
-                cmid=0,
-                showscale=True,
-                colorbar=dict(title="Return", tickformat=".1%", tickcolor="#a3a3a3"),
-            ),
+            ids=node_ids,
+            labels=node_labels,
+            parents=node_parents,
+            values=node_values,
+            branchvalues="total",
+            marker=marker,
             textfont=dict(color="#ffffff"),
-            texttemplate="%{label}<br>%{color:.2%}",
-            hovertemplate="<b>%{label}</b><br>Return: %{color:.2%}<extra></extra>",
+            texttemplate=f"%{{label}}<br>%{{color:{value_format}}}",
+            hovertemplate=f"<b>%{{label}}</b><br>%{{color:{value_format}}}<extra></extra>",
         )
     )
-    fig.update_layout(**_layout(height=420, margin=dict(l=10, r=10, t=30, b=10)))
+    fig.update_layout(**_layout(height=520, margin=dict(l=10, r=10, t=30, b=10)))
     return fig
+
+
+def return_treemap(table: pd.DataFrame, *, metric: str = "return_1d") -> go.Figure:
+    """Back-compat wrapper: flat return-colored treemap."""
+    return metric_treemap(table, metric=metric, group_by=None)
 
 
 def movers_table_figure(

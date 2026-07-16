@@ -120,3 +120,104 @@ def render_comparison(comparison: dict, performance: pd.DataFrame) -> None:
     disclaimer = comparison.get("provenance", {}).get(
         "disclaimer", "prototype / delayed / unofficial source")
     st.caption(f"⚠️ {disclaimer} · Russell 1000/3000 are market-cap proxies.")
+
+
+# Metrics shown side-by-side in the stock comparison table (column, label, kind).
+_STOCK_COMPARE_ROWS = [
+    ("latest_close", "Price", "usd_px"),
+    ("market_cap", "Market cap", "usd"),
+    ("sector", "Sector", "str"),
+    ("industry", "Industry", "str"),
+    ("return_1m", "1M return", "pct"),
+    ("return_ytd", "YTD return", "pct"),
+    ("return_1y", "1Y return", "pct"),
+    ("rsi_14", "RSI(14)", "num"),
+    ("price_vs_sma_200", "vs 200D MA", "pct"),
+    ("volatility_252d", "Vol (1Y)", "pct"),
+    ("beta_qqq", "Beta vs QQQ", "num"),
+    ("max_drawdown", "Max drawdown", "pct"),
+    ("revenue_growth", "Rev growth", "pct"),
+    ("gross_margin", "Gross margin", "pct"),
+    ("net_margin", "Net margin", "pct"),
+    ("roe", "ROE", "pct"),
+    ("fcf_margin", "FCF margin", "pct"),
+]
+
+
+def build_stock_comparison(table: pd.DataFrame, symbols: list[str]) -> pd.DataFrame:
+    """Side-by-side metric table (pure): one column per symbol, one row per metric."""
+    if table.empty or "symbol" not in table.columns or not symbols:
+        return pd.DataFrame()
+    subset = table[table["symbol"].isin(symbols)].drop_duplicates("symbol").set_index("symbol")
+    data: dict[str, list[str]] = {}
+    for symbol in symbols:
+        if symbol not in subset.index:
+            continue
+        row = subset.loc[symbol]
+        cells: list[str] = []
+        for col, _, kind in _STOCK_COMPARE_ROWS:
+            value = row.get(col) if col in subset.columns else None
+            if kind == "str":
+                cells.append(str(value) if value and not pd.isna(value) else "—")
+            elif kind == "usd_px":
+                cells.append("—" if value is None or pd.isna(value) else f"${float(value):,.2f}")
+            else:
+                cells.append(_fmt(None if value is None or pd.isna(value) else value, kind))
+        data[symbol] = cells
+    if not data:
+        return pd.DataFrame()
+    return pd.DataFrame(data, index=[label for _, label, _ in _STOCK_COMPARE_ROWS])
+
+
+def render_stock_comparison(table: pd.DataFrame, history_loader) -> None:
+    """Stock-vs-stock comparison: rebased price chart + side-by-side metrics.
+
+    `history_loader(symbol)` returns a date-indexed OHLCV frame (the cached
+    read-API loader from the app shell), so this view never fetches live data.
+    """
+    import plotly.graph_objects as go
+    import streamlit as st
+
+    if table.empty or "symbol" not in table.columns:
+        st.info("Stock comparison needs a metrics snapshot.")
+        return
+
+    symbols = sorted(table["symbol"].dropna().unique().tolist())
+    chosen = st.multiselect(
+        "Compare stocks (2–6)", symbols, max_selections=6, key="stock_compare_symbols"
+    )
+    if len(chosen) < 2:
+        st.caption("Pick at least two tickers to compare.")
+        return
+
+    series = []
+    for symbol in chosen:
+        hist = history_loader(symbol)
+        if hist is None or hist.empty or "adj_close" not in hist.columns:
+            continue
+        s = hist["adj_close"].dropna()
+        if s.empty:
+            continue
+        series.append((s / s.iloc[0] * 100.0).rename(symbol))
+
+    if series:
+        wide = pd.concat(series, axis=1).sort_index()
+        fig = go.Figure()
+        for column in wide.columns:
+            fig.add_trace(go.Scatter(x=wide.index, y=wide[column], name=column, mode="lines"))
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#0a0a0a",
+            height=380,
+            margin=dict(l=40, r=20, t=36, b=30),
+            yaxis_title="Rebased to 100",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    else:
+        st.caption("No cached price history for the selected tickers yet.")
+
+    comparison = build_stock_comparison(table, chosen)
+    if not comparison.empty:
+        st.dataframe(comparison, use_container_width=True)

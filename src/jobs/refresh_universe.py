@@ -15,7 +15,6 @@ from src.data_sources import universe as universe_module
 from src.jobs.common import UNIVERSE_DATASET, UniverseFetchFn
 from src.storage.base import Storage
 
-
 logger = logging.getLogger(__name__)
 
 
