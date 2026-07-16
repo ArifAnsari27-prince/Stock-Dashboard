@@ -13,7 +13,7 @@ apart from reading the optional `.env` file.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # Repo root is two levels up from this file: <root>/src/config.py.
@@ -77,6 +77,13 @@ class Config:
     # Minimum seconds between Massive REST calls. Free tier ≈ 5/min; 13s (~4.6/min)
     # keeps margin so we don't trip the limit under clock skew or brief retries.
     massive_min_request_interval_seconds: float = 13.0
+
+    # --- News (Finnhub free tier) -----------------------------------------
+    # Optional: the news job skips gracefully when unset.
+    finnhub_api_key: str | None = None
+    # Company headlines are fetched for the top-N universe names by market cap
+    # (each symbol is one API call; keep this modest for the 60/min free tier).
+    news_top_symbols: int = 25
 
     # --- Storage backend (object store / Cloudflare R2) ------------------
     # DATA_URI selects where snapshots are read/written:
@@ -160,6 +167,16 @@ class Config:
             "region": self.r2_region,
         }
 
+    def require_finnhub_api_key(self) -> str:
+        """Return the Finnhub API key or raise if unset."""
+        if not self.finnhub_api_key:
+            raise RuntimeError(
+                "FINNHUB_API_KEY is not set. Required for the news refresh job. "
+                "Get a free key at https://finnhub.io and set it in .env locally "
+                "or as a repo secret in Actions."
+            )
+        return self.finnhub_api_key
+
     def require_massive_api_key(self) -> str:
         """Return the Massive API key or raise if unset."""
         if not self.massive_api_key:
@@ -191,6 +208,7 @@ def get_config() -> Config:
         sec_user_agent=os.environ.get("SEC_USER_AGENT"),
         price_source=os.environ.get("PRICE_SOURCE", "yfinance").strip().lower(),
         massive_api_key=massive_key,
+        finnhub_api_key=os.environ.get("FINNHUB_API_KEY"),
         data_uri=os.environ.get("DATA_URI"),
         r2_endpoint=os.environ.get("R2_ENDPOINT"),
         r2_access_key_id=os.environ.get("R2_ACCESS_KEY_ID"),

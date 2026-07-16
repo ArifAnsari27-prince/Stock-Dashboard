@@ -27,7 +27,9 @@ class DataSource(str, Enum):
     SEC_EDGAR = "sec_edgar"  # official filings + XBRL company facts
     NASDAQ_INDEX = "nasdaq_index"  # official Nasdaq-100 constituent list (QQQ tracks this)
     QQQ_HOLDINGS = "qqq_holdings"  # Invesco QQQ holdings CSV (universe proxy)
+    FINNHUB = "finnhub"  # Finnhub free tier (news headlines; delayed/limited)
     COMPUTED = "computed"  # derived metrics (technicals/returns/ratios)
+    USER = "user"  # user-authored data (saved screens, preferences)
 
 
 class FilingType(str, Enum):
@@ -63,6 +65,10 @@ class Ticker(BaseModel):
     )
     sector: str | None = Field(
         default=None, description="Canonical (GICS-like) sector, normalized across sources."
+    )
+    industry: str | None = Field(
+        default=None,
+        description="Finer-grained industry label from the Nasdaq screener (unnormalized).",
     )
     market_cap: float | None = Field(
         default=None, description="Market capitalization in USD, if known."
@@ -173,6 +179,35 @@ class Filing(BaseModel):
         default=None, description="EDGAR accession number, e.g. '0000320193-24-000123'."
     )
     url: str = Field(description="Link to the filing document or index page.")
+
+
+class NewsItem(BaseModel):
+    """One news headline, market-wide or tied to a symbol.
+
+    Sourced from a scheduled batch job (never fetched live by the frontend).
+    `symbol` is None for general market headlines.
+    """
+
+    symbol: str | None = Field(
+        default=None, description="Ticker the headline relates to; None for market news."
+    )
+    headline: str
+    source: str | None = Field(default=None, description="Publisher name, e.g. 'Reuters'.")
+    url: str | None = Field(default=None, description="Link to the article.")
+    published_at: dt.datetime = Field(description="UTC publication timestamp.")
+    summary: str | None = Field(default=None, description="Short article summary, if provided.")
+
+
+class SavedScreen(BaseModel):
+    """A user-saved screener configuration (filters + sort), persisted as a dataset row.
+
+    `params_json` holds the JSON-encoded filter/sort spec built by the frontend
+    (kept opaque here so the UI can evolve its filter schema freely).
+    """
+
+    name: str = Field(description="User-chosen screen name (unique key).")
+    params_json: str = Field(description="JSON-encoded filter/sort parameters.")
+    updated_at: dt.datetime = Field(description="UTC timestamp of the last save.")
 
 
 class Provenance(BaseModel):
